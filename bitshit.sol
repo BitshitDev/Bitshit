@@ -9,6 +9,7 @@ pragma solidity ^0.8.19;
  *      - Random fee mechanism
  *      - Jackpot mechanism
  *      - Minting and burning capabilities
+ *      - Trading window and fees activation by admin
  *      - Voting power delegation
  *
  * @dev Developed by BeAWhale
@@ -49,6 +50,11 @@ contract Bitshit {
     // Transaction count for tracking
     uint256 public transactionCount = 0;
 
+    // Trading and fee activation
+    bool public feesAndTradingWindowActive = false;
+    uint256 public activationTimestamp = 0;
+    address public admin;
+
     // Events for logging
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
@@ -56,6 +62,8 @@ contract Bitshit {
     event RandomValueGenerated(uint256 randomValue);
     event InitialDistribution(address indexed wallet, uint256 amount);
     event TokensBurned(address indexed burner, uint256 amount);
+    event FeesAndTradingWindowActivated(uint256 activationTimestamp);
+    event AdminChanged(address indexed oldAdmin, address indexed newAdmin);
 
     /**
      * @dev Constructor to initialize wallets and distribute initial tokens.
@@ -70,13 +78,15 @@ contract Bitshit {
         address _communityIncentivesWallet,
         address _teamAndAdvisorsWallet,
         address _partnershipsWallet,
-        address _reserveFundWallet
+        address _reserveFundWallet,
+        address _admin
     ) {
         require(_publicSaleWallet != address(0), "Public sale wallet is zero address");
         require(_communityIncentivesWallet != address(0), "Community incentives wallet is zero address");
         require(_teamAndAdvisorsWallet != address(0), "Team and advisors wallet is zero address");
         require(_partnershipsWallet != address(0), "Partnerships wallet is zero address");
         require(_reserveFundWallet != address(0), "Reserve fund wallet is zero address");
+        require(_admin != address(0), "Admin is zero address");
 
         publicSaleWallet = _publicSaleWallet;
         communityIncentivesWallet = _communityIncentivesWallet;
@@ -84,45 +94,46 @@ contract Bitshit {
         partnershipsWallet = _partnershipsWallet;
         reserveFundWallet = _reserveFundWallet;
         contractAddress = address(this);
+        admin = _admin;
 
         // Initial token distribution
         _distributeInitialTokens();
     }
 
-    // Modifier to allow transactions only during specific windows
-    modifier onlyDuringTradingWindow() {
-        require(_isWithinTradingWindow(), "Trading is only allowed during the trading windows");
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "Caller is not the admin");
         _;
     }
 
-    // Modifier to check valid transaction amount
+    modifier onlyDuringTradingWindow() {
+        if (feesAndTradingWindowActive) {
+            require(_isWithinTradingWindow(), "Trading is only allowed during the trading windows");
+        }
+        _;
+    }
+
     modifier validTransactionAmount(uint256 amount) {
         bytes memory amountString = bytes(toString(amount));
         require(amountString.length >= 2 && amountString[0] == '6' && amountString[1] == '9', "Invalid transfer amount: Not starting with 69");
-    
-        // Convert the string back to a number and check if it's a multiple of 10
+
         uint256 remainder = amount % 10**(amountString.length - 2);
         require(remainder == 0, "Invalid transfer amount: Must be a multiple of 10");
         _;
     }
 
-    /**
-     * @dev Checks if the current time is within the trading window.
-     * @return true if within trading window, false otherwise
-     */
     function _isWithinTradingWindow() private view returns (bool) {
-        uint256 dayTimestamp = block.timestamp % (1 days);
+        uint256 dayTimestamp = (block.timestamp - activationTimestamp) % (1 days);
         bool isInFirstWindow = (dayTimestamp >= transactionWindowStart1 && dayTimestamp < transactionWindowStart1 + transactionWindowDuration);
         bool isInSecondWindow = (dayTimestamp >= transactionWindowStart2 && dayTimestamp < transactionWindowStart2 + transactionWindowDuration);
         return isInFirstWindow || isInSecondWindow;
     }
 
-    /**
-     * @dev Returns the time until the next trading window.
-     * @return time in seconds until the next trading window
-     */
     function timeUntilNextTradingWindow() public view returns (uint256) {
-        uint256 dayTimestamp = block.timestamp % (1 days);
+        if (!feesAndTradingWindowActive) {
+            return 0;
+        }
+
+        uint256 dayTimestamp = (block.timestamp - activationTimestamp) % (1 days);
 
         if (dayTimestamp < transactionWindowStart1) {
             return transactionWindowStart1 - dayTimestamp;
@@ -137,9 +148,37 @@ contract Bitshit {
         }
     }
 
-    /**
-     * @dev Distributes initial tokens to designated wallets.
-     */
+    function timeUntilTradingWindowCloses() public view returns (uint256) {
+        if (!feesAndTradingWindowActive) {
+            return 0;
+        }
+
+        uint256 dayTimestamp = (block.timestamp - activationTimestamp) % (1 days);
+
+        if (dayTimestamp >= transactionWindowStart1 && dayTimestamp < transactionWindowStart1 + transactionWindowDuration) {
+            return transactionWindowStart1 + transactionWindowDuration - dayTimestamp;
+        } else if (dayTimestamp >= transactionWindowStart2 && dayTimestamp < transactionWindowStart2 + transactionWindowDuration) {
+            return transactionWindowStart2 + transactionWindowDuration - dayTimestamp;
+        } else {
+            return 0;
+        }
+    }
+
+    function activateFeesAndTradingWindow() public onlyAdmin {
+        require(!feesAndTradingWindowActive, "Fees and trading window already activated");
+
+        feesAndTradingWindowActive = true;
+        activationTimestamp = block.timestamp;
+
+        emit FeesAndTradingWindowActivated(activationTimestamp);
+    }
+
+    function changeAdmin(address newAdmin) public onlyAdmin {
+        require(newAdmin != address(0), "New admin is zero address");
+        emit AdminChanged(admin, newAdmin);
+        admin = newAdmin;
+    }
+
     function _distributeInitialTokens() private {
         uint256 publicSaleTokens = 21345345000000000000000000; // 21,345,345 tokens
         uint256 communityIncentivesTokens = 8538138000000000000000000; // 8,538,138 tokens
@@ -161,10 +200,6 @@ contract Bitshit {
         emit InitialDistribution(reserveFundWallet, reserveFundTokens);
     }
 
-    /**
-     * @dev Burns initial tokens from the total supply.
-     * @param amount Amount of tokens to burn
-     */
     function _burnInitialTokens(uint256 amount) private {
         require(balanceOf[publicSaleWallet] + balanceOf[communityIncentivesWallet] + balanceOf[teamAndAdvisorsWallet] + balanceOf[partnershipsWallet] + balanceOf[reserveFundWallet] >= amount, "Insufficient balance to burn");
 
@@ -174,11 +209,6 @@ contract Bitshit {
         emit TokensBurned(contractAddress, amount);
     }
 
-    /**
-     * @dev Converts a uint256 to a string.
-     * @param value The uint256 to convert
-     * @return The string representation of the uint256
-     */
     function toString(uint256 value) public pure returns (string memory) {
         if (value == 0) {
             return "0";
@@ -198,22 +228,10 @@ contract Bitshit {
         return string(buffer);
     }
 
-    /**
-     * @dev Calculates a random value for the fee and jackpot.
-     * @return Random value
-     */
     function _calculateRandomValue() private view returns (uint256) {
         return uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender, transactionCount))) % 1000000000;
     }
 
-    /**
-     * @dev Adjusts the fee and returns the net amount and fee amount.
-     * @param randomValue Random value generated for the fee
-     * @param amount Transaction amount
-     * @return netAmount Net amount after fee adjustment
-     * @return feeAmount Fee amount
-     * @return feeIsPositive True if the fee is positive, false if negative
-     */
     function _adjustFee(uint256 randomValue, uint256 amount) private view returns (uint256, uint256, bool) {
         int256 feePercentage = int256(randomValue % 8389) - 4169; // range: -41.69% to 42.0%
         int256 fee = (feePercentage * int256(amount)) / 10000;
@@ -221,7 +239,6 @@ contract Bitshit {
         uint256 netAmount = uint256(int256(amount) - fee);
         bool feeIsPositive = true;
 
-        // Ensure fee is positive if the contract cannot pay a negative fee
         if (fee < 0) {
             if (feeAmount <= balanceOf[contractAddress]) {
                 feeIsPositive = false;
@@ -237,11 +254,6 @@ contract Bitshit {
         return (netAmount, feeAmount, feeIsPositive);
     }
 
-    /**
-     * @dev Handles the jackpot distribution.
-     * @param to Address of the recipient
-     * @param amount Amount of tokens transferred
-     */
     function _handleJackpot(address to, uint256 amount) private {
         uint256 jackpotAmount = amount * JACKPOT_MULTIPLIER;
         uint256 availableJackpot = balanceOf[contractAddress] * 9 / 10;
@@ -253,12 +265,6 @@ contract Bitshit {
         emit JackpotWinner(to, payoutAmount);
     }
 
-    /**
-     * @notice Transfers tokens with fee adjustment and potential jackpot.
-     * @param to Address to transfer tokens to
-     * @param amount Amount of tokens to transfer
-     * @return success True on successful transfer, reverts otherwise
-     */
     function transfer(address to, uint256 amount) public onlyDuringTradingWindow validTransactionAmount(amount) returns (bool success) {
         uint256 randomValue = _calculateRandomValue();
         emit RandomValueGenerated(randomValue);
@@ -289,25 +295,12 @@ contract Bitshit {
         return true;
     }
 
-    /**
-     * @notice Approves an allowance for a spender.
-     * @param spender Address of the spender
-     * @param amount Amount of tokens to approve
-     * @return success True on successful approval, reverts otherwise
-     */
     function approve(address spender, uint256 amount) public returns (bool success) {
         allowance[msg.sender][spender] = amount;
         emit Approval(msg.sender, spender, amount);
         return true;
     }
 
-    /**
-     * @notice Transfers tokens from an approved address with fee adjustment and potential jackpot.
-     * @param from Address to transfer tokens from
-     * @param to Address to transfer tokens to
-     * @param amount Amount of tokens to transfer
-     * @return success True on successful transfer, reverts otherwise
-     */
     function transferFrom(address from, address to, uint256 amount) public onlyDuringTradingWindow validTransactionAmount(amount) returns (bool success) {
         uint256 randomValue = _calculateRandomValue();
         emit RandomValueGenerated(randomValue);
@@ -340,10 +333,6 @@ contract Bitshit {
         return true;
     }
 
-    /**
-     * @notice Burns tokens, reducing the total supply.
-     * @param amount Amount of tokens to burn
-     */
     function burn(uint256 amount) public {
         require(balanceOf[msg.sender] >= amount, "Insufficient balance");
         balanceOf[msg.sender] -= amount;
