@@ -156,70 +156,73 @@ contract Bitshit {
     function _isWithinTradingWindow() private view returns (bool) {
         uint256 currentTime = block.timestamp;
         uint256 timeSinceFirstWindow = currentTime - firstTradingWindowStartTime;
-
-        // Each cycle is composed of 1 hour open, 11 hours closed, then 1 week closed after the second window
-        uint256 cycleDuration = (tradingWindowDuration + delayBetweenWindows) + weekDuration;
+    
+        // Each cycle is composed of 1 hour open, 11 hours closed, then 1 week - 13 hours
+        uint256 cycleDuration = (tradingWindowDuration + delayBetweenWindows) + (weekDuration - (tradingWindowDuration + delayBetweenWindows));
         uint256 timeInCycle = timeSinceFirstWindow % cycleDuration;
-
-        // First window open for 1 hour, then delay of 11 hours for the second window
-        if (timeInCycle < tradingWindowDuration || (timeInCycle >= (tradingWindowDuration + delayBetweenWindows) && timeInCycle < (tradingWindowDuration * 2 + delayBetweenWindows))) {
+    
+        // Check if the current time is within the 1-hour first window or the 1-hour second window
+        if (timeInCycle < tradingWindowDuration || 
+            (timeInCycle >= (tradingWindowDuration + delayBetweenWindows) && timeInCycle < (tradingWindowDuration * 2 + delayBetweenWindows))) {
             return true;
         }
-
+    
         return false; // Otherwise, the trading window is closed
     }
 
     /**
-     * @dev Returns the time in seconds until the next trading window opens.
-     * @return Time in seconds until the next trading window starts, or 0 if trading is already open.
-     */
+ * @dev Returns the time in seconds until the next trading window opens.
+ * @return Time in seconds until the next trading window starts, or 0 if trading is already open.
+ */
     function whenWindowOpens() public view returns (uint256) {
-        if (!tradingActive) {
-            return 0; // Trading is not active
-        }
-
-        uint256 currentTime = block.timestamp;
-        uint256 timeSinceFirstWindow = currentTime - firstTradingWindowStartTime;
-
-        // Each cycle is composed of 1 hour open, 11 hours closed, then 1 week closed after the second window
-        uint256 cycleDuration = (tradingWindowDuration + delayBetweenWindows) + weekDuration;
-        uint256 timeInCycle = timeSinceFirstWindow % cycleDuration;
-
-        if (timeInCycle < tradingWindowDuration || (timeInCycle >= (tradingWindowDuration + delayBetweenWindows) && timeInCycle < (tradingWindowDuration * 2 + delayBetweenWindows))) {
-            return 0; // Trading window is currently open
-        } else if (timeInCycle < (tradingWindowDuration + delayBetweenWindows)) {
-            // If in the delay between windows
-            return (tradingWindowDuration + delayBetweenWindows) - timeInCycle;
-        } else {
-            // If in the 1-week delay
-            return cycleDuration - timeInCycle;
-        }
+    if (!tradingActive) {
+        return 0; // Trading is not active
     }
 
+    uint256 currentTime = block.timestamp;
+    uint256 timeSinceFirstWindow = currentTime - firstTradingWindowStartTime;
+
+    // Each cycle is composed of 1 hour open, 11 hours closed, then 1 week - 13 hours
+    uint256 cycleDuration = (tradingWindowDuration + delayBetweenWindows) + (weekDuration - (tradingWindowDuration + delayBetweenWindows));
+    uint256 timeInCycle = timeSinceFirstWindow % cycleDuration;
+
+    // If we are in the trading window, return 0
+    if (timeInCycle < tradingWindowDuration || 
+        (timeInCycle >= (tradingWindowDuration + delayBetweenWindows) && timeInCycle < (tradingWindowDuration * 2 + delayBetweenWindows))) {
+        return 0; // Trading window is currently open
+    } else if (timeInCycle < (tradingWindowDuration + delayBetweenWindows)) {
+        // If in the delay between windows, return the time until the second window opens
+        return (tradingWindowDuration + delayBetweenWindows) - timeInCycle;
+    } else {
+        // If in the 1-week delay, return the time until the first window of the next cycle opens
+        return cycleDuration - timeInCycle;
+    }
+    }
+    
     /**
-     * @dev Returns the time in seconds until the current trading window closes.
-     * @return Time in seconds until the current trading window closes, or 0 if no window is currently open.
-     */
+ * @dev Returns the time in seconds until the current trading window closes.
+ * @return Time in seconds until the current trading window closes, or 0 if no window is currently open.
+ */
     function whenWindowCloses() public view returns (uint256) {
-        if (!tradingActive) {
-            return 0; // Trading is not active
-        }
+    if (!tradingActive) {
+        return 0; // Trading is not active
+    }
 
-        uint256 currentTime = block.timestamp;
-        uint256 timeSinceFirstWindow = currentTime - firstTradingWindowStartTime;
+    uint256 currentTime = block.timestamp;
+    uint256 timeSinceFirstWindow = currentTime - firstTradingWindowStartTime;
 
-        // Each cycle is composed of 1 hour open, 11 hours closed, then 1 week closed after the second window
-        uint256 cycleDuration = (tradingWindowDuration + delayBetweenWindows) + weekDuration;
-        uint256 timeInCycle = timeSinceFirstWindow % cycleDuration;
+    // Each cycle is composed of 1 hour open, 11 hours closed, then 1 week - 13 hours
+    uint256 cycleDuration = (tradingWindowDuration + delayBetweenWindows) + (weekDuration - (tradingWindowDuration + delayBetweenWindows));
+    uint256 timeInCycle = timeSinceFirstWindow % cycleDuration;
 
-        // If within the first or second window, calculate remaining time
-        if (timeInCycle < tradingWindowDuration) {
-            return tradingWindowDuration - timeInCycle; // First window closes
-        } else if (timeInCycle >= (tradingWindowDuration + delayBetweenWindows) && timeInCycle < (tradingWindowDuration * 2 + delayBetweenWindows)) {
-            return (tradingWindowDuration * 2 + delayBetweenWindows) - timeInCycle; // Second window closes
-        } else {
-            return 0; // No window is currently open
-        }
+    // If in the first or second window, calculate remaining time
+    if (timeInCycle < tradingWindowDuration) {
+        return tradingWindowDuration - timeInCycle; // Time until first window closes
+    } else if (timeInCycle >= (tradingWindowDuration + delayBetweenWindows) && timeInCycle < (tradingWindowDuration * 2 + delayBetweenWindows)) {
+        return (tradingWindowDuration * 2 + delayBetweenWindows) - timeInCycle; // Time until second window closes
+    } else {
+        return 0; // No window is currently open
+    }
     }
 
     /**
