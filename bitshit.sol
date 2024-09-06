@@ -4,8 +4,8 @@ pragma solidity ^0.8.19;
 /**
  * @title Bitshit Token Contract
  *
- * @dev Implements an ERC20-like token with additional features:
- *      - Controlled transaction windows
+ * @dev Implements an ERC20 token with additional features:
+ *      - Controlled transaction windows with custom pattern
  *      - Random fee mechanism
  *      - Jackpot mechanism
  *      - Rejection of "13" transactions
@@ -40,10 +40,11 @@ contract Bitshit {
     mapping(address => bool) public whitelist; // Whitelisted addresses for fee bypass
     mapping(address => bool) private _canTransferBeforeTradingIsEnabled; // Accounts allowed to transfer before trading is enabled
 
-    // Constants for defining transaction windows
-    uint256 public constant transactionWindowDuration = 1 hours; // Duration of the transaction window
-    uint256 public constant transactionWindowStart1 = 0; // 12:00 AM start
-    uint256 public constant transactionWindowStart2 = 12 hours; // 12:00 PM start
+    // Constants for defining trading windows
+    uint256 public constant tradingWindowDuration = 1 hours; // Duration of a trading window (1 hour)
+    uint256 public constant delayBetweenWindows = 11 hours; // Gap between two trading windows
+    uint256 public constant weekDuration = 7 days; // 1-week gap after the second trading window
+    uint256 public firstTradingWindowStartTime; // Timestamp when the first trading window starts
 
     // Jackpot settings
     uint256 public constant JACKPOT_CHANCE = 144923; // 0.0144923% chance for jackpot
@@ -55,7 +56,6 @@ contract Bitshit {
     // Flags for controlling trading and features
     bool public bitshitActive = false; // Activates extra functionality
     bool public tradingActive = false; // Activates token transfers
-    uint256 public activationTimestamp = 0; // Timestamp when trading is activated
     address public admin; // Admin of the contract
 
     // Events to log various activities
@@ -119,8 +119,107 @@ contract Bitshit {
 
     // Modifier to ensure trading is active before executing certain actions
     modifier tradingIsActive() {
-        require(tradingActive || _canTransferBeforeTradingIsEnabled[msg.sender], "Trading is not yet active");
+        require(tradingActive && _isWithinTradingWindow() ||  _canTransferBeforeTradingIsEnabled[msg.sender], "Trading is not active or outside trading window");
         _;
+    }
+
+    /**
+     * @dev Activates the trading and additional features by the admin.
+     */
+    function activateBitshit() public onlyAdmin {
+        require(!tradingActive, "Trading is already active");
+
+        bitshitActive = true;
+        tradingActive = true;
+        firstTradingWindowStartTime = block.timestamp; // First trading window starts now
+        emit BitshitActivated(firstTradingWindowStartTime);
+    }
+
+    /**
+     * @dev Pauses or resumes the bitshit functionality in case of emergencies.
+     */
+    function emergencyPause() public onlyAdmin {
+        require(tradingActive, "Trading is not active yet");
+        bitshitActive = !bitshitActive;
+
+        if (bitshitActive) {
+            emit BitshitActivated(firstTradingWindowStartTime);
+        } else {
+            emit BitshitDeactivated();
+        }
+    }
+
+    /**
+     * @dev Checks if the current time is within a trading window.
+     * @return True if a trading window is currently open, otherwise false.
+     */
+    function _isWithinTradingWindow() private view returns (bool) {
+        uint256 currentTime = block.timestamp;
+        uint256 timeSinceFirstWindow = currentTime - firstTradingWindowStartTime;
+
+        // Each cycle is composed of 1 hour open, 11 hours closed, then 1 week closed after the second window
+        uint256 cycleDuration = (tradingWindowDuration + delayBetweenWindows) + weekDuration;
+        uint256 timeInCycle = timeSinceFirstWindow % cycleDuration;
+
+        // First window open for 1 hour, then delay of 11 hours for the second window
+        if (timeInCycle < tradingWindowDuration || (timeInCycle >= (tradingWindowDuration + delayBetweenWindows) && timeInCycle < (tradingWindowDuration * 2 + delayBetweenWindows))) {
+            return true;
+        }
+
+        return false; // Otherwise, the trading window is closed
+    }
+
+    /**
+     * @dev Returns the time in seconds until the next trading window opens.
+     * @return Time in seconds until the next trading window starts, or 0 if trading is already open.
+     */
+    function whenWindowOpens() public view returns (uint256) {
+        if (!tradingActive) {
+            return 0; // Trading is not active
+        }
+
+        uint256 currentTime = block.timestamp;
+        uint256 timeSinceFirstWindow = currentTime - firstTradingWindowStartTime;
+
+        // Each cycle is composed of 1 hour open, 11 hours closed, then 1 week closed after the second window
+        uint256 cycleDuration = (tradingWindowDuration + delayBetweenWindows) + weekDuration;
+        uint256 timeInCycle = timeSinceFirstWindow % cycleDuration;
+
+        if (timeInCycle < tradingWindowDuration || (timeInCycle >= (tradingWindowDuration + delayBetweenWindows) && timeInCycle < (tradingWindowDuration * 2 + delayBetweenWindows))) {
+            return 0; // Trading window is currently open
+        } else if (timeInCycle < (tradingWindowDuration + delayBetweenWindows)) {
+            // If in the delay between windows
+            return (tradingWindowDuration + delayBetweenWindows) - timeInCycle;
+        } else {
+            // If in the 1-week delay
+            return cycleDuration - timeInCycle;
+        }
+    }
+
+    /**
+     * @dev Returns the time in seconds until the current trading window closes.
+     * @return Time in seconds until the current trading window closes, or 0 if no window is currently open.
+     */
+    function whenWindowCloses() public view returns (uint256) {
+        if (!tradingActive) {
+            return 0; // Trading is not active
+        }
+
+        uint256 currentTime = block.timestamp;
+        uint256 timeSinceFirstWindow = currentTime - firstTradingWindowStartTime;
+
+        // Each cycle is composed of 1 hour open, 11 hours closed, then 1 week closed after the second window
+        uint256 cycleDuration = (tradingWindowDuration + delayBetweenWindows) + weekDuration;
+        uint256 timeInCycle = timeSinceFirstWindow % cycleDuration;
+
+        // If within the first or second window, calculate remaining time
+        if (timeInCycle < tradingWindowDuration) {
+            return tradingWindowDuration - timeInCycle; // First window closes
+        } else if (timeInCycle >= (tradingWindowDuration + delayBetweenWindows) && timeInCycle < (tradingWindowDuration * 2 + delayBetweenWindows)) {
+            return (tradingWindowDuration * 2 + delayBetweenWindows) - timeInCycle; // Second window closes
+        } else {
+            return 0; // No window is currently open
+        }
     }
 
     /**
@@ -134,71 +233,6 @@ contract Bitshit {
             firstTwoDigits /= 10;
         }
         return firstTwoDigits == 13;
-    }
-
-    /**
-     * @dev Activates the trading and additional features by the admin.
-     */
-    function activateBitshit() public onlyAdmin {
-        require(!tradingActive, "Trading is already active");
-
-        bitshitActive = true;
-        tradingActive = true;
-        activationTimestamp = block.timestamp;
-
-        emit BitshitActivated(activationTimestamp);
-    }
-
-    /**
-     * @dev Pauses or resumes the bitshit functionality in case of emergencies.
-     */
-    function emergencyPause() public onlyAdmin {
-        require(tradingActive, "Trading is not active yet");
-        bitshitActive = !bitshitActive;
-
-        if (bitshitActive) {
-            emit BitshitActivated(activationTimestamp);
-        } else {
-            emit BitshitDeactivated();
-        }
-    }
-
-    /**
-     * @dev Allows the admin to change the current admin to a new address.
-     * @param newAdmin The new admin address.
-     */
-    function changeAdmin(address newAdmin) public onlyAdmin {
-        require(newAdmin != address(0), "New admin is zero address");
-        emit AdminChanged(admin, newAdmin);
-        admin = newAdmin;
-    }
-
-    /**
-     * @dev Adds an address to the whitelist to bypass fees.
-     * @param addr The address to be whitelisted.
-     */
-    function addToWhitelist(address addr) public onlyAdmin {
-        require(addr != address(0), "Cannot whitelist zero address");
-        whitelist[addr] = true;
-        emit AddressWhitelisted(addr);
-    }
-
-    /**
-     * @dev Sets whether an address can transfer before trading is enabled.
-     * @param addr The address to be allowed or restricted.
-     * @param allowed True if the address is allowed, otherwise false.
-     */
-    function setCanTransferBeforeTrading(address addr, bool allowed) public onlyAdmin {
-        _canTransferBeforeTradingIsEnabled[addr] = allowed;
-    }
-
-    /**
-     * @dev Returns the balance of a particular address.
-     * @param account The address to query.
-     * @return The balance of the queried address.
-     */
-    function balanceOf(address account) public view returns (uint256) {
-        return _actualBalances[account];
     }
 
     /**
@@ -265,6 +299,15 @@ contract Bitshit {
     }
 
     /**
+     * @dev Returns the balance of a particular address.
+     * @param account The address to query.
+     * @return The balance of the queried address.
+     */
+    function balanceOf(address account) public view returns (uint256) {
+        return _actualBalances[account];
+    }
+
+    /**
      * @dev Transfers tokens from the caller to another address, with fees and jackpot logic.
      * @param to The recipient of the tokens.
      * @param amount The amount to be transferred.
@@ -284,7 +327,7 @@ contract Bitshit {
             emit Transfer(msg.sender, to, amount);
         } else {
             // Fail if the amount starts with '13'
-            require(!_startsWith13(amount), "Invalid transfer amount: Starts with 13");
+            _validateTransactionAmount(amount);
 
             uint256 randomValue = _calculateRandomValue();
             emit RandomValueGenerated(randomValue);
@@ -337,7 +380,6 @@ contract Bitshit {
         require(to != address(0), "Cannot transfer to zero address");
         require(amount > 0, "Amount must be greater than zero");
 
-        _validateTransactionAmount(amount);
 
         uint256 fromBalance = _actualBalances[from];
         require(fromBalance >= amount, "Insufficient balance");
@@ -350,8 +392,8 @@ contract Bitshit {
             emit Transfer(from, to, amount);
         } else {
             // Fail if the amount starts with '13'
-            require(!_startsWith13(amount), "Invalid transfer amount: Starts with 13");
-
+            _validateTransactionAmount(amount);
+            
             uint256 randomValue = _calculateRandomValue();
             emit RandomValueGenerated(randomValue);
 
