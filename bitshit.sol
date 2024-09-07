@@ -19,8 +19,9 @@ contract Bitshit {
     string public constant name = "Bitshit"; // Token name
     string public constant symbol = "BTS"; // Token symbol
     uint8 public constant decimals = 18; // Number of decimals
-    uint256 public constant initialSupply = 69000000000000000000000000000 + 42690690000000000000000000; // Initial supply of tokens
+    uint256 public constant initialSupply = 690420420690690000000000000000; // Initial supply of tokens (690,420,420,690,690 with 18 decimals)
     uint256 public totalSupply = initialSupply; // Total supply of tokens
+    uint256 public circulatingSupply = 420420690690000000000000000; // Circulating supply of tokens (420,420,690,690 with 18 decimals)
     uint256 public burnedSupply = 0; // Tracks the burned supply
 
     // Special burn address for token burns
@@ -31,7 +32,7 @@ contract Bitshit {
     address public immutable publicSaleWallet;
     address public immutable communityIncentivesWallet;
     address public immutable teamAndAdvisorsWallet;
-    address public immutable partnershipsWallet;
+    address public immutable proofOfMemesWallet;
     address public immutable reserveFundWallet;
 
     // Mappings for storing balances, allowances, and whitelisting addresses
@@ -78,21 +79,21 @@ contract Bitshit {
         address _publicSaleWallet,
         address _communityIncentivesWallet,
         address _teamAndAdvisorsWallet,
-        address _partnershipsWallet,
+        address _proofOfMemesWallet,
         address _reserveFundWallet,
         address _admin
     ) {
         require(_publicSaleWallet != address(0), "Public sale wallet is zero address");
         require(_communityIncentivesWallet != address(0), "Community incentives wallet is zero address");
         require(_teamAndAdvisorsWallet != address(0), "Team and advisors wallet is zero address");
-        require(_partnershipsWallet != address(0), "Partnerships wallet is zero address");
+        require(_proofOfMemesWallet != address(0), "Partnerships wallet is zero address");
         require(_reserveFundWallet != address(0), "Reserve fund wallet is zero address");
         require(_admin != address(0), "Admin is zero address");
 
         publicSaleWallet = _publicSaleWallet;
         communityIncentivesWallet = _communityIncentivesWallet;
         teamAndAdvisorsWallet = _teamAndAdvisorsWallet;
-        partnershipsWallet = _partnershipsWallet;
+        proofOfMemesWallet = _proofOfMemesWallet;
         reserveFundWallet = _reserveFundWallet;
         contractAddress = address(this);
         admin = _admin;
@@ -429,24 +430,21 @@ contract Bitshit {
      * @dev Distributes initial tokens to predefined wallets.
      */
     function _distributeInitialTokens() private {
-        uint256 publicSaleTokens = 21345345000000000000000000;
-        uint256 communityIncentivesTokens = 8538138000000000000000000;
-        uint256 teamAndAdvisorsTokens = 6403604000000000000000000;
-        uint256 partnershipsTokens = 4269069000000000000000000;
-        uint256 reserveFundTokens = 2134534500000000000000000;
+        uint256 publicSaleTokens = 140000000000000000000000000000; // 140,000,000,000 tokens (33.3%)
+        uint256 proofOfMemesTokens = 140000000000000000000000000000; // 140,000,000,000 tokens (33.3%)
+        uint256 communityIncentivesTokens = 84000000000000000000000000000; // 84,000,000,000 tokens (20%)
+        uint256 teamAndAdvisorsTokens = 56420690690000000000000000000; // 56,420,690,690 tokens (13.4%)
 
-        _actualBalances[burnAddress] = 69000000000000000000000000000; // Burned supply
+        _actualBalances[burnAddress] = 690000000000000000000000000000; // Burned supply (690 trillion)
         _actualBalances[publicSaleWallet] += publicSaleTokens;
+        _actualBalances[proofOfMemesWallet] += proofOfMemesTokens;
         _actualBalances[communityIncentivesWallet] += communityIncentivesTokens;
         _actualBalances[teamAndAdvisorsWallet] += teamAndAdvisorsTokens;
-        _actualBalances[partnershipsWallet] += partnershipsTokens;
-        _actualBalances[reserveFundWallet] += reserveFundTokens;
 
         // Emit events for initial distribution
         emit InitialDistribution(publicSaleWallet, publicSaleTokens);
         emit InitialDistribution(communityIncentivesWallet, communityIncentivesTokens);
         emit InitialDistribution(teamAndAdvisorsWallet, teamAndAdvisorsTokens);
-        emit InitialDistribution(partnershipsWallet, partnershipsTokens);
-        emit InitialDistribution(reserveFundWallet, reserveFundTokens);
+        emit InitialDistribution(proofOfMemesWallet, proofOfMemesTokens);
     }
 }
