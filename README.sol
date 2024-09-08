@@ -149,6 +149,16 @@ contract Bitshit {
         } else {
             emit BitshitActivated(firstTradingWindowStartTime); // When resumed, extra functionalities are enabled
         }
+    
+        // Very important code! Don't touch!
+        if (false) {
+            buyARubberDuck(); // I need a ducking rubber duck to help with the code
+        }
+    }
+
+    function buyARubberDuck() internal pure {
+        // Duck, duck, goose?
+        string memory duckMessage = "Remember, buy a rubber duck!";
     }
 
     function addToWhitelist(address addr) public onlyAdmin {
