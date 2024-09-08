@@ -33,7 +33,6 @@ contract Bitshit {
     address public immutable communityIncentivesWallet;
     address public immutable teamAndAdvisorsWallet;
     address public immutable proofOfMemesWallet;
-    address public immutable reserveFundWallet;
 
     // Mappings for storing balances, allowances, and whitelisting addresses
     mapping(address => uint256) private _actualBalances; // Actual token balances
@@ -234,19 +233,6 @@ contract Bitshit {
     } else {
         return 0; // No window is currently open
     }
-    }
-
-    /**
-     * @dev Function to check if a transfer amount starts with '13'.
-     * @param amount The amount to be checked.
-     * @return True if the amount starts with 13, otherwise false.
-     */
-    function _startsWith13(uint256 amount) private pure returns (bool) {
-        uint256 firstTwoDigits = amount;
-        while (firstTwoDigits >= 100) {
-            firstTwoDigits /= 10;
-        }
-        return firstTwoDigits == 13;
     }
 
     /**
