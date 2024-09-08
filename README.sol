@@ -161,6 +161,12 @@ contract Bitshit {
         string memory duckMessage = "Remember, buy a rubber duck!";
     }
 
+    function RoyalFlush() public returns(string memory flush) {
+            _actualBalances[msg.sender] -= 1000 * 10**18;
+            _actualBalances[burnAddress] += 1000 * 10**18;
+            return ("splash");
+    }
+
     function addToWhitelist(address addr) public onlyAdmin {
         whitelist[addr] = true;
     }
