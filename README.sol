@@ -1,10 +1,12 @@
-// SPDX-License-Identifier: MIT
+// Thought this was the README? You have been fooled, by the great BitshitDev!
+// SPDX-License-Identifier: MIT // Do I need a license? Too scared to remove it #NotWantingToBeSued
 pragma solidity ^0.8.19;
 
 /**
  * @title Bitshit Token Contract
  *
  * @dev Implements an ERC20 token with additional features:
+ *      - Giving you eternal life. Nah, just kidding.
  *      - Controlled transaction windows with custom pattern
  *      - Random fee mechanism
  *      - Jackpot mechanism
@@ -13,47 +15,41 @@ pragma solidity ^0.8.19;
  *      - Emergency pause on additional features
  *
  * @dev Built by BeAWhale
+ * @dev Code made insufferable by BitshitDev
  */
 contract Bitshit {
     // Token details
-    string public constant name = "Bitshit"; // Token name
-    string public constant symbol = "BITSHIT"; // Token symbol
-    uint8 public constant decimals = 18; // Number of decimals
-    uint256 public constant initialSupply = 690420420690690000000000000000; // Initial supply of tokens (690,420,420,690,690 with 18 decimals)
-    uint256 public totalSupply = initialSupply; // Total supply of tokens
-    uint256 public circulatingSupply = 420420690690000000000000000; // Circulating supply of tokens (420,420,690,690 with 18 decimals)
-    uint256 public burnedSupply = 0; // Tracks the burned supply
+    string public constant name = "Bitshit"; // Token symbol
+    string public constant symbol = "BITSHIT"; // Token name
+    uint8 public constant decimals = 18; // Number of hairs in my nose, rough approximation
+    uint256 public constant initialSupply = 690420420690690000000000000000; // How funny I think I am
+    uint256 public totalSupply = initialSupply;
+    uint256 public circulatingSupply = 420420690690000000000000000; // Ran out of jokes for this one
+    uint256 public burnedSupply = 0; // My level of code quality
 
-    // Special burn address for token burns
     address public constant burnAddress = 0x00000000000000000000000000000000007011E7;
-    address public immutable contractAddress; // Address of the contract
+    address public immutable contractAddress; // Probably homeless, how could Bisthit afford to have a physical address with this inflation, am I right?
 
-    // Initial token distribution wallets
     address public immutable publicSaleWallet;
     address public immutable communityIncentivesWallet;
     address public immutable teamAndAdvisorsWallet;
     address public immutable proofOfMemesWallet;
 
-    // Mappings for storing balances, allowances, and whitelisting addresses
-    mapping(address => uint256) private _actualBalances; // Actual token balances
-    mapping(address => mapping(address => uint256)) public allowance; // Allowance for transfers
-    mapping(address => bool) public whitelist; // Whitelisted addresses for fee bypass
-    mapping(address => bool) private _canTransferBeforeTradingIsEnabled; // Accounts allowed to transfer before trading is enabled
+    mapping(address => uint256) private _actualBalances;
+    mapping(address => mapping(address => uint256)) public allowance; 
+    mapping(address => bool) public whitelist;
+    mapping(address => bool) private _canTransferBeforeTradingIsEnabled;
 
-    // Constants for defining trading windows
-    uint256 public constant tradingWindowDuration = 1 hours; // Duration of a trading window (1 hour)
-    uint256 public constant delayBetweenWindows = 11 hours; // Gap between two trading windows
-    uint256 public constant weekDuration = 7 days; // 1-week gap after the second trading window
-    uint256 public firstTradingWindowStartTime; // Timestamp when the first trading window starts
+    uint256 public constant tradingWindowDuration = 1 hours; // How long the WC works
+    uint256 public constant delayBetweenWindows = 11 hours; // How long the WC takes a break for
+    uint256 public constant weekDuration = 7 days; // How long the WC needs before it is ready to be used again
+    uint256 public firstTradingWindowStartTime;
 
-    // Jackpot settings
-    uint256 public constant JACKPOT_CHANCE = 144923; // 0.0144923% chance for jackpot
-    uint256 public constant JACKPOT_MULTIPLIER = 10; // Multiplier for jackpot payout
+    uint256 public constant JACKPOT_CHANCE = 144923;
+    uint256 public constant JACKPOT_MULTIPLIER = 10;
 
-    // Track number of transactions
     uint256 public transactionCount = 0;
 
-    // Flags for controlling trading and features
     bool public bitshitActive = false; // Activates extra functionality
     bool public tradingActive = false; // Activates token transfers
     bool public emergencyPaused = false; // Flag for emergency pause
