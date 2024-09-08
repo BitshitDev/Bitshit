@@ -17,7 +17,7 @@ pragma solidity ^0.8.19;
 contract Bitshit {
     // Token details
     string public constant name = "Bitshit"; // Token name
-    string public constant symbol = "BTS"; // Token symbol
+    string public constant symbol = "BITSHIT"; // Token symbol
     uint8 public constant decimals = 18; // Number of decimals
     uint256 public constant initialSupply = 690420420690690000000000000000; // Initial supply of tokens (690,420,420,690,690 with 18 decimals)
     uint256 public totalSupply = initialSupply; // Total supply of tokens
@@ -80,21 +80,18 @@ contract Bitshit {
         address _communityIncentivesWallet,
         address _teamAndAdvisorsWallet,
         address _proofOfMemesWallet,
-        address _reserveFundWallet,
         address _admin
     ) {
         require(_publicSaleWallet != address(0), "Public sale wallet is zero address");
         require(_communityIncentivesWallet != address(0), "Community incentives wallet is zero address");
         require(_teamAndAdvisorsWallet != address(0), "Team and advisors wallet is zero address");
         require(_proofOfMemesWallet != address(0), "Partnerships wallet is zero address");
-        require(_reserveFundWallet != address(0), "Reserve fund wallet is zero address");
         require(_admin != address(0), "Admin is zero address");
 
         publicSaleWallet = _publicSaleWallet;
         communityIncentivesWallet = _communityIncentivesWallet;
         teamAndAdvisorsWallet = _teamAndAdvisorsWallet;
         proofOfMemesWallet = _proofOfMemesWallet;
-        reserveFundWallet = _reserveFundWallet;
         contractAddress = address(this);
         admin = _admin;
 
@@ -148,6 +145,10 @@ contract Bitshit {
         } else {
             emit BitshitDeactivated();
         }
+    }
+
+    function addToWhitelist(address addr) public onlyAdmin {
+        whitelist[addr] = true;
     }
 
     /**
