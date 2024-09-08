@@ -57,6 +57,7 @@ contract Bitshit {
     // Flags for controlling trading and features
     bool public bitshitActive = false; // Activates extra functionality
     bool public tradingActive = false; // Activates token transfers
+    bool public emergencyPaused = false; // Flag for emergency pause
     address public admin; // Admin of the contract
 
     // Events to log various activities
@@ -117,7 +118,16 @@ contract Bitshit {
 
     // Modifier to ensure trading is active before executing certain actions
     modifier tradingIsActive() {
-        require(tradingActive && _isWithinTradingWindow() ||  _canTransferBeforeTradingIsEnabled[msg.sender], "Trading is not active or outside trading window");
+        require(tradingActive, "Trading is not active");
+
+        // If emergencyPaused is true, skip Bitshit functionalities
+        if (!emergencyPaused) {
+            // When not paused, check for Bitshit functionalities (windows, etc.)
+            require(
+                (bitshitActive && (_isWithinTradingWindow() || _canTransferBeforeTradingIsEnabled[msg.sender])),
+                "Bitshit functionalities are paused or outside trading window"
+            );
+        }
         _;
     }
 
@@ -137,13 +147,12 @@ contract Bitshit {
      * @dev Pauses or resumes the bitshit functionality in case of emergencies.
      */
     function emergencyPause() public onlyAdmin {
-        require(tradingActive, "Trading is not active yet");
-        bitshitActive = !bitshitActive;
-
-        if (bitshitActive) {
-            emit BitshitActivated(firstTradingWindowStartTime);
+        emergencyPaused = !emergencyPaused; // Toggle emergency pause
+    
+        if (emergencyPaused) {
+            emit BitshitDeactivated(); // When paused, extra functionalities are disabled
         } else {
-            emit BitshitDeactivated();
+            emit BitshitActivated(firstTradingWindowStartTime); // When resumed, extra functionalities are enabled
         }
     }
 
@@ -244,12 +253,14 @@ contract Bitshit {
      * @dev Validates that a transaction amount does not start with '13'.
      * @param amount The transaction amount.
      */
-    function _validateTransactionAmount(uint256 amount) private pure {
-        uint256 firstTwoDigits = amount;
-        while (firstTwoDigits >= 100) {
-            firstTwoDigits /= 10;
+    function _validateTransactionAmount(uint256 amount) private view {
+        if (!emergencyPaused) {
+            uint256 firstTwoDigits = amount;
+            while (firstTwoDigits >= 100) {
+                firstTwoDigits /= 10;
+            }
+            require(firstTwoDigits != 13, "Invalid transfer amount: Starts with 13");
         }
-        require(firstTwoDigits != 13, "Invalid transfer amount: Starts with 13");
     }
 
     /**
@@ -313,35 +324,40 @@ contract Bitshit {
     }
 
     /**
-     * @dev Transfers tokens from the caller to another address, with fees and jackpot logic.
+     * @dev Transfers tokens from the caller to another address, with fees and jackpot logic if applicable.
+     *      If emergencyPaused is active, extra features like fees, jackpot, and "13" check are skipped.
      * @param to The recipient of the tokens.
      * @param amount The amount to be transferred.
      * @return success - true if the transfer is successful.
      */
     function transfer(address to, uint256 amount) public tradingIsActive returns (bool success) {
-        require(to != address(0), "Cannot transfer to zero address");
-        require(amount > 0, "Amount must be greater than zero");
+    require(to != address(0), "Cannot transfer to zero address");
+    require(amount > 0, "Amount must be greater than zero");
 
-        uint256 senderBalance = _actualBalances[msg.sender];
-        require(senderBalance >= amount, "Insufficient balance");
+    uint256 senderBalance = _actualBalances[msg.sender];
+    require(senderBalance >= amount, "Insufficient balance");
 
-        // Whitelisted addresses bypass fees and jackpot mechanism
-        if (whitelist[msg.sender] || whitelist[to]) {
-            _actualBalances[msg.sender] = senderBalance - amount;
-            _actualBalances[to] += amount;
-            emit Transfer(msg.sender, to, amount);
-        } else {
-            // Fail if the amount starts with '13'
-            _validateTransactionAmount(amount);
+    // Whitelisted addresses bypass fees and jackpot mechanism
+    if (whitelist[msg.sender] || whitelist[to]) {
+        _actualBalances[msg.sender] = senderBalance - amount;
+        _actualBalances[to] += amount;
+        emit Transfer(msg.sender, to, amount);
+    } else {
+        // If emergency pause is not active, apply extra features
+        if (!emergencyPaused) {
+            _validateTransactionAmount(amount); // Check if the amount starts with '13'
 
             uint256 randomValue = _calculateRandomValue();
             emit RandomValueGenerated(randomValue);
 
+            // Jackpot mechanism
             if (randomValue < JACKPOT_CHANCE) {
                 _handleJackpot(to, amount);
             } else {
+                // Fee adjustment mechanism
                 (uint256 netAmount, uint256 feeAmount, bool feeIsPositive) = _adjustFee(randomValue, amount);
 
+                // Update balances after fee adjustment
                 _actualBalances[msg.sender] = senderBalance - amount;
                 _actualBalances[to] += netAmount;
 
@@ -356,10 +372,17 @@ contract Bitshit {
                 emit Transfer(msg.sender, to, netAmount);
                 transactionCount++;
             }
+        } else {
+            // If emergencyPaused is active, perform a simple transfer
+            _actualBalances[msg.sender] = senderBalance - amount;
+            _actualBalances[to] += amount;
+            emit Transfer(msg.sender, to, amount);
         }
-
-        return true;
     }
+
+    return true;
+    }
+
 
     /**
      * @dev Approves a spender to transfer tokens from the caller's account.
@@ -375,57 +398,69 @@ contract Bitshit {
     }
 
     /**
-     * @dev Transfers tokens from one address to another, with fees and jackpot logic.
-     * @param from The address transferring the tokens.
-     * @param to The recipient of the tokens.
-     * @param amount The amount to be transferred.
-     * @return success - True if the transfer is successful.
-     */
+    * @dev Transfers tokens from one address to another, with fees and jackpot logic if applicable.
+    *      If emergencyPaused is active, extra features like fees, jackpot, and "13" check are skipped.
+    * @param from The address transferring the tokens.
+    * @param to The recipient of the tokens.
+    * @param amount The amount to be transferred.
+    * @return success - true if the transfer is successful.
+    */
     function transferFrom(address from, address to, uint256 amount) public returns (bool success) {
         require(to != address(0), "Cannot transfer to zero address");
         require(amount > 0, "Amount must be greater than zero");
-
-
+    
         uint256 fromBalance = _actualBalances[from];
         require(fromBalance >= amount, "Insufficient balance");
         require(allowance[from][msg.sender] >= amount, "Allowance exceeded");
-
+    
         // Whitelisted addresses bypass fees and jackpot mechanism
-        if (whitelist[from] || whitelist[to]) {
+    if (whitelist[from] || whitelist[to]) {
             _actualBalances[from] = fromBalance - amount;
-            _actualBalances[to] += amount;
-            emit Transfer(from, to, amount);
-        } else {
-            // Fail if the amount starts with '13'
-            _validateTransactionAmount(amount);
-            
-            uint256 randomValue = _calculateRandomValue();
-            emit RandomValueGenerated(randomValue);
-
-            if (randomValue < JACKPOT_CHANCE) {
-                _handleJackpot(to, amount);
-            } else {
-                (uint256 netAmount, uint256 feeAmount, bool feeIsPositive) = _adjustFee(randomValue, amount);
-
-                _actualBalances[from] = fromBalance - amount;
-                _actualBalances[to] += netAmount;
-
-                if (feeAmount > 0) {
-                    if (feeIsPositive) {
-                        _actualBalances[contractAddress] += feeAmount; // Contract collects the fee
-                    } else {
-                        _actualBalances[contractAddress] -= feeAmount; // Contract gives rebate
-                    }
-                }
-
-                allowance[from][msg.sender] -= amount;
-                emit Transfer(from, to, netAmount);
-                transactionCount++;
-            }
-        }
-
-        return true;
+         _actualBalances[to] += amount;
+         emit Transfer(from, to, amount);
+     } else {
+         // If emergency pause is not active, apply extra features
+         if (!emergencyPaused) {
+             _validateTransactionAmount(amount); // Check if the amount starts with '13'
+    
+              uint256 randomValue = _calculateRandomValue();
+               emit RandomValueGenerated(randomValue);
+    
+              // Jackpot mechanism
+               if (randomValue < JACKPOT_CHANCE) {
+                   _handleJackpot(to, amount);
+               } else {
+                   // Fee adjustment mechanism
+                   (uint256 netAmount, uint256 feeAmount, bool feeIsPositive) = _adjustFee(randomValue, amount);
+    
+                  // Update balances after fee adjustment
+                   _actualBalances[from] = fromBalance - amount;
+                   _actualBalances[to] += netAmount;
+    
+                   if (feeAmount > 0) {
+                       if (feeIsPositive) {
+                           _actualBalances[contractAddress] += feeAmount; // Contract collects the fee
+                       } else {
+                           _actualBalances[contractAddress] -= feeAmount; // Contract gives rebate
+                       }
+                   }
+    
+                   // Update allowance
+                   allowance[from][msg.sender] -= amount;
+                   emit Transfer(from, to, netAmount);
+                   transactionCount++;
+               }
+           } else {
+               // If emergencyPaused is active, perform a simple transfer
+               _actualBalances[from] = fromBalance - amount;
+               _actualBalances[to] += amount;
+               emit Transfer(from, to, amount);
+           }
+       }
+    
+       return true;
     }
+
 
     /**
      * @dev Distributes initial tokens to predefined wallets.
