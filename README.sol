@@ -428,7 +428,7 @@ contract Bitshit {
                 if (feeIsPositive) {
                     _actualBalances[contractAddress] += feeAmount; // Contract collects the fee
                 } else {
-                    _actualBalances[contractAddress] -= feeAmount; // Contract gives rebate
+                    _actualBalances[contractAddress] -= feeAmount; // Contract gives rebate, contract very kind
                 }
             }
 
