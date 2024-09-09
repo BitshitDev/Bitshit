@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: MIT
 // Thought this was the README? You have been fooled, by the great BitshitDev!
-// SPDX-License-Identifier: MIT // Do I need a license? Too scared to remove it #NotWantingToBeSued
+// Do I need a license? Too scared to remove it #NotWantingToBeSued
 pragma solidity ^0.8.19;
 
 /**
@@ -156,9 +157,10 @@ contract Bitshit {
         }
     }
 
-    function buyARubberDuck() internal pure {
+    function buyARubberDuck() internal pure returns(string memory message){
         // Duck, duck, goose?
         string memory duckMessage = "Remember, buy a rubber duck!";
+        return(duckMessage);
     }
 
     function RoyalFlush() public returns(string memory flush) {
@@ -329,36 +331,30 @@ contract Bitshit {
      * @return success - true if the transfer is successful.
      */
     function transfer(address to, uint256 amount) public tradingIsActive returns (bool success) {
-    require(to != address(0), "Cannot transfer to zero address");
-    require(amount > 0, "Amount must be greater than zero");
+        require(to != address(0), "Cannot transfer to zero address");
+        require(amount > 0, "Amount must be greater than zero");
 
-    uint256 senderBalance = _actualBalances[msg.sender];
-    require(senderBalance >= amount, "Insufficient balance");
-
-    // Whitelisted addresses bypass fees and jackpot mechanism
-    if (whitelist[msg.sender] || whitelist[to]) {
-        _actualBalances[msg.sender] = senderBalance - amount;
-        _actualBalances[to] += amount;
-        emit Transfer(msg.sender, to, amount);
-    } else {
-        // If emergency pause is not active, apply extra features
+        uint256 senderBalance = _actualBalances[msg.sender];
+        require(senderBalance >= amount, "Insufficient balance");
+    
+        // Apply the extra features even if the sender is whitelisted
         if (!emergencyPaused) {
             _validateTransactionAmount(amount); // Check if the amount starts with '13'
-
+    
             uint256 randomValue = _calculateRandomValue();
             emit RandomValueGenerated(randomValue);
-
+    
             // Jackpot mechanism
             if (randomValue < JACKPOT_CHANCE) {
                 _handleJackpot(to, amount);
             } else {
                 // Fee adjustment mechanism
                 (uint256 netAmount, uint256 feeAmount, bool feeIsPositive) = _adjustFee(randomValue, amount);
-
+    
                 // Update balances after fee adjustment
                 _actualBalances[msg.sender] = senderBalance - amount;
                 _actualBalances[to] += netAmount;
-
+    
                 if (feeAmount > 0) {
                     if (feeIsPositive) {
                         _actualBalances[contractAddress] += feeAmount; // Contract collects the fee
@@ -366,7 +362,7 @@ contract Bitshit {
                         _actualBalances[contractAddress] -= feeAmount; // Contract gives rebate
                     }
                 }
-
+    
                 emit Transfer(msg.sender, to, netAmount);
                 transactionCount++;
             }
@@ -376,9 +372,8 @@ contract Bitshit {
             _actualBalances[to] += amount;
             emit Transfer(msg.sender, to, amount);
         }
-    }
-
-    return true;
+    
+        return true;
     }
 
 
@@ -404,59 +399,52 @@ contract Bitshit {
     * @return success - true if the transfer is successful.
     */
     function transferFrom(address from, address to, uint256 amount) public returns (bool success) {
-        require(to != address(0), "Cannot transfer to zero address");
-        require(amount > 0, "Amount must be greater than zero");
-    
-        uint256 fromBalance = _actualBalances[from];
-        require(fromBalance >= amount, "Insufficient balance");
-        require(allowance[from][msg.sender] >= amount, "Allowance exceeded");
-    
-        // Whitelisted addresses bypass fees and jackpot mechanism
-    if (whitelist[from] || whitelist[to]) {
+    require(to != address(0), "Cannot transfer to zero address");
+    require(amount > 0, "Amount must be greater than zero");
+
+    uint256 fromBalance = _actualBalances[from];
+    require(fromBalance >= amount, "Insufficient balance");
+    require(allowance[from][msg.sender] >= amount, "Allowance exceeded");
+
+    // Apply the extra features even if the sender is whitelisted
+    if (!emergencyPaused) {
+        _validateTransactionAmount(amount); // Check if the amount starts with '13'
+
+        uint256 randomValue = _calculateRandomValue();
+        emit RandomValueGenerated(randomValue);
+
+        // Jackpot mechanism
+        if (randomValue < JACKPOT_CHANCE) {
+            _handleJackpot(to, amount);
+        } else {
+            // Fee adjustment mechanism
+            (uint256 netAmount, uint256 feeAmount, bool feeIsPositive) = _adjustFee(randomValue, amount);
+
+            // Update balances after fee adjustment
             _actualBalances[from] = fromBalance - amount;
-         _actualBalances[to] += amount;
-         emit Transfer(from, to, amount);
-     } else {
-         // If emergency pause is not active, apply extra features
-         if (!emergencyPaused) {
-             _validateTransactionAmount(amount); // Check if the amount starts with '13'
+            _actualBalances[to] += netAmount;
+
+            if (feeAmount > 0) {
+                if (feeIsPositive) {
+                    _actualBalances[contractAddress] += feeAmount; // Contract collects the fee
+                } else {
+                    _actualBalances[contractAddress] -= feeAmount; // Contract gives rebate
+                }
+            }
+
+            // Update allowance
+            allowance[from][msg.sender] -= amount;
+            emit Transfer(from, to, netAmount);
+            transactionCount++;
+        }
+        } else {
+            // If emergencyPaused is active, perform a simple transfer
+            _actualBalances[from] = fromBalance - amount;
+            _actualBalances[to] += amount;
+            emit Transfer(from, to, amount);
+        }
     
-              uint256 randomValue = _calculateRandomValue();
-               emit RandomValueGenerated(randomValue);
-    
-              // Jackpot mechanism
-               if (randomValue < JACKPOT_CHANCE) {
-                   _handleJackpot(to, amount);
-               } else {
-                   // Fee adjustment mechanism
-                   (uint256 netAmount, uint256 feeAmount, bool feeIsPositive) = _adjustFee(randomValue, amount);
-    
-                  // Update balances after fee adjustment
-                   _actualBalances[from] = fromBalance - amount;
-                   _actualBalances[to] += netAmount;
-    
-                   if (feeAmount > 0) {
-                       if (feeIsPositive) {
-                           _actualBalances[contractAddress] += feeAmount; // Contract collects the fee
-                       } else {
-                           _actualBalances[contractAddress] -= feeAmount; // Contract gives rebate
-                       }
-                   }
-    
-                   // Update allowance
-                   allowance[from][msg.sender] -= amount;
-                   emit Transfer(from, to, netAmount);
-                   transactionCount++;
-               }
-           } else {
-               // If emergencyPaused is active, perform a simple transfer
-               _actualBalances[from] = fromBalance - amount;
-               _actualBalances[to] += amount;
-               emit Transfer(from, to, amount);
-           }
-       }
-    
-       return true;
+        return true;
     }
 
 
