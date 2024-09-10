@@ -250,18 +250,20 @@ contract Bitshit {
     }
 
     /**
-     * @dev Validates that a transaction amount does not start with '13'.
+     * @dev Validates that a transaction amount does not start with '13',
+     *      except for whitelisted addresses, which bypass this check.
      * @param amount The transaction amount.
      */
-    function _validateTransactionAmount(uint256 amount) private view {
-        if (!emergencyPaused) {
-            uint256 firstTwoDigits = amount;
-            while (firstTwoDigits >= 100) {
-                firstTwoDigits /= 10;
-            }
-            require(firstTwoDigits != 13, "Invalid transfer amount: Starts with 13");
+    function _validateTransactionAmount(uint256 amount, address sender) private view {
+    if (!emergencyPaused && !whitelist[sender]) {
+        uint256 firstTwoDigits = amount;
+        while (firstTwoDigits >= 100) {
+            firstTwoDigits /= 10;
         }
+        require(firstTwoDigits != 13, "Invalid transfer amount: Starts with 13");
     }
+    }
+
 
     /**
      * @dev Calculates a random value to be used in fee or jackpot logic.
@@ -331,50 +333,44 @@ contract Bitshit {
      * @return success - true if the transfer is successful.
      */
     function transfer(address to, uint256 amount) public tradingIsActive returns (bool success) {
-        require(to != address(0), "Cannot transfer to zero address");
-        require(amount > 0, "Amount must be greater than zero");
+    require(to != address(0), "Cannot transfer to zero address");
+    require(amount > 0, "Amount must be greater than zero");
 
-        uint256 senderBalance = _actualBalances[msg.sender];
-        require(senderBalance >= amount, "Insufficient balance");
-    
-        // Apply the extra features even if the sender is whitelisted
-        if (!emergencyPaused) {
-            _validateTransactionAmount(amount); // Check if the amount starts with '13'
-    
-            uint256 randomValue = _calculateRandomValue();
-            emit RandomValueGenerated(randomValue);
-    
-            // Jackpot mechanism
-            if (randomValue < JACKPOT_CHANCE) {
-                _handleJackpot(to, amount);
-            } else {
-                // Fee adjustment mechanism
-                (uint256 netAmount, uint256 feeAmount, bool feeIsPositive) = _adjustFee(randomValue, amount);
-    
-                // Update balances after fee adjustment
-                _actualBalances[msg.sender] = senderBalance - amount;
-                _actualBalances[to] += netAmount;
-    
-                if (feeAmount > 0) {
-                    if (feeIsPositive) {
-                        _actualBalances[contractAddress] += feeAmount; // Contract collects the fee
-                    } else {
-                        _actualBalances[contractAddress] -= feeAmount; // Contract gives rebate
-                    }
-                }
-    
-                emit Transfer(msg.sender, to, netAmount);
-                transactionCount++;
-            }
+    uint256 senderBalance = _actualBalances[msg.sender];
+    require(senderBalance >= amount, "Insufficient balance");
+
+    if (!emergencyPaused) {
+        _validateTransactionAmount(amount, msg.sender); // Check if the amount starts with '13', bypass for whitelist
+
+        uint256 randomValue = _calculateRandomValue();
+        emit RandomValueGenerated(randomValue);
+
+        if (randomValue < JACKPOT_CHANCE) {
+            _handleJackpot(to, amount);
         } else {
-            // If emergencyPaused is active, perform a simple transfer
+            (uint256 netAmount, uint256 feeAmount, bool feeIsPositive) = _adjustFee(randomValue, amount);
+
             _actualBalances[msg.sender] = senderBalance - amount;
-            _actualBalances[to] += amount;
-            emit Transfer(msg.sender, to, amount);
+            _actualBalances[to] += netAmount;
+
+            if (feeAmount > 0) {
+                if (feeIsPositive) {
+                    _actualBalances[contractAddress] += feeAmount;
+                } else {
+                    _actualBalances[contractAddress] -= feeAmount;
+                }
+            }
+            emit Transfer(msg.sender, to, netAmount);
         }
-    
-        return true;
+    } else {
+        _actualBalances[msg.sender] = senderBalance - amount;
+        _actualBalances[to] += amount;
+        emit Transfer(msg.sender, to, amount);
     }
+
+    transactionCount++;
+    return true;
+}
 
 
     /**
@@ -406,46 +402,40 @@ contract Bitshit {
     require(fromBalance >= amount, "Insufficient balance");
     require(allowance[from][msg.sender] >= amount, "Allowance exceeded");
 
-    // Apply the extra features even if the sender is whitelisted
     if (!emergencyPaused) {
-        _validateTransactionAmount(amount); // Check if the amount starts with '13'
+        _validateTransactionAmount(amount, from); // Check if the amount starts with '13', bypass for whitelist
 
         uint256 randomValue = _calculateRandomValue();
         emit RandomValueGenerated(randomValue);
 
-        // Jackpot mechanism
         if (randomValue < JACKPOT_CHANCE) {
             _handleJackpot(to, amount);
         } else {
-            // Fee adjustment mechanism
             (uint256 netAmount, uint256 feeAmount, bool feeIsPositive) = _adjustFee(randomValue, amount);
 
-            // Update balances after fee adjustment
             _actualBalances[from] = fromBalance - amount;
             _actualBalances[to] += netAmount;
 
             if (feeAmount > 0) {
                 if (feeIsPositive) {
-                    _actualBalances[contractAddress] += feeAmount; // Contract collects the fee
+                    _actualBalances[contractAddress] += feeAmount;
                 } else {
-                    _actualBalances[contractAddress] -= feeAmount; // Contract gives rebate, contract very kind
+                    _actualBalances[contractAddress] -= feeAmount;
                 }
             }
 
-            // Update allowance
             allowance[from][msg.sender] -= amount;
             emit Transfer(from, to, netAmount);
-            transactionCount++;
         }
-        } else {
-            // If emergencyPaused is active, perform a simple transfer
-            _actualBalances[from] = fromBalance - amount;
-            _actualBalances[to] += amount;
-            emit Transfer(from, to, amount);
-        }
-    
-        return true;
+    } else {
+        _actualBalances[from] = fromBalance - amount;
+        _actualBalances[to] += amount;
+        emit Transfer(from, to, amount);
     }
+
+    transactionCount++;
+    return true;
+}
 
 
     /**
