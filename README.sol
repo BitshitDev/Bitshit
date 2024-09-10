@@ -23,9 +23,9 @@ contract Bitshit {
     string public constant name = "Bitshit"; // Token symbol
     string public constant symbol = "BITSHIT"; // Token name
     uint8 public constant decimals = 18; // Number of hairs in my nose, rough approximation
-    uint256 public constant initialSupply = 690420420690690000000000000000; // How funny I think I am
+    uint256 public constant initialSupply = 690420420690690000000000000000000; // How funny I think I am
     uint256 public totalSupply = initialSupply;
-    uint256 public circulatingSupply = 420420690690000000000000000; // Ran out of jokes for this one
+    uint256 public circulatingSupply = 420420690690000000000000000000; // Ran out of jokes for this one
     uint256 public burnedSupply = 0; // My level of code quality
 
     address public constant burnAddress = 0x00000000000000000000000000000000007011E7;
