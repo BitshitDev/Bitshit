@@ -447,7 +447,7 @@ contract Bitshit {
         uint256 communityIncentivesTokens = 84000000000000000000000000000; // 84,000,000,000 tokens (20%)
         uint256 teamAndAdvisorsTokens = 56420690690000000000000000000; // 56,420,690,690 tokens (13.4%)
 
-        _actualBalances[burnAddress] = 690000000000000000000000000000; // Burned supply (690 trillion)
+        _actualBalances[burnAddress] = 690000000000000000000000000000000; // Burned supply (690 trillion)
         _actualBalances[publicSaleWallet] += publicSaleTokens;
         _actualBalances[proofOfMemesWallet] += proofOfMemesTokens;
         _actualBalances[communityIncentivesWallet] += communityIncentivesTokens;
